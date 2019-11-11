@@ -1,0 +1,1042 @@
+\documentclass{beamer}
+
+%\usepackage[backend=bibtex,citestyle=authoryear]{biblatex}
+%\addbibresource{Entailment}
+%\addbibresource{Fragments}
+%\addbibresource{Benchmarks}
+
+\usepackage{amsmath}
+\usepackage{stmaryrd}
+\usepackage{listings}
+% Language Definitions for Turtle
+\definecolor{olivegreen}{rgb}{0.2,0.8,0.5}
+\definecolor{grey}{rgb}{0.5,0.5,0.5}
+
+%\lstdefinelanguage{ttl}{
+%sensitive=true,
+%morecomment=[l][\color{grey}]{@},
+%morecomment=[l][\color{olivegreen}]{\#},
+%morestring=[b][\color{blue}]\",
+%}
+
+% Language Definitions for RDF/Turtle
+\lstdefinelanguage{ttl} {
+ morekeywords={@prefix,@base,@forSome,@forAll,@keywords},
+ sensitive=true,
+% morecomment=[l][\color{grey}]{@},
+% morecomment=[l][\color{olivegreen}]{\#},
+ morestring=[b][\color{blue}]\",
+}
+
+% Language Definitions for SPARQL
+\lstdefinelanguage{sparql}{
+%morecomment=[l][\color{olivegreen}]{\#},
+morestring=[b][\color{blue}]\",
+morekeywords={SELECT,CONSTRUCT,DESCRIBE,ASK,WHERE,FROM,NAMED,PREFIX,BASE,OPTIONAL,FILTER,GRAPH,LIMIT,OFFSET,SERVICE,UNION,EXISTS,NOT,BINDINGS,MINUS,a},
+sensitive=true
+}
+
+\lstset{
+    basicstyle=\ttfamily\scriptsize,
+%    basicstyle=\ttfamily\tiny,
+    keywordstyle=\bfseries,
+    numbers=none,
+    extendedchars=true,
+    showlines=true,
+    upquote=true,
+    showstringspaces=false,
+    xleftmargin=5mm
+}
+
+% left join operator symbol
+\def\ojoin{\setbox0=\hbox{$\bowtie$}%
+  \rule[-.02ex]{.25em}{.4pt}\llap{\rule[\ht0]{.25em}{.4pt}}}
+\def\leftouterjoin{\mathbin{\ojoin\mkern-5.8mu\bowtie}}
+\def\rightouterjoin{\mathbin{\bowtie\mkern-5.8mu\ojoin}}
+\def\fullouterjoin{\mathbin{\ojoin\mkern-5.8mu\bowtie\mkern-5.8mu\ojoin}}
+
+
+\setbeamertemplate{section page}
+{
+    \begin{centering}
+    \begin{beamercolorbox}[sep=12pt,center]{part title}
+    \usebeamerfont{section title}\insertsection\par
+    \end{beamercolorbox}
+    \end{centering}
+}
+
+
+
+\title{Solving SPARQL Query Containment}
+\subtitle{using (Sub-) Graph Isomorphisms}
+\author[shortname]{Ren\'{e} Schubotz \textsuperscript{1}}
+\institute[shortinst]{\textsuperscript{1} German Research Center for Artificial Intelligence}
+
+
+
+
+
+%\usetheme{lucid}
+\begin{document}
+\frame {
+	\titlepage
+}
+
+\begin{frame}
+\frametitle{Overview} 
+\tableofcontents
+\end{frame}
+
+% ========================================================================================
+\section{Resource Description Framework}
+\frame{\sectionpage}
+
+\frame {
+\frametitle{Resource Description Framework}
+\framesubtitle{Triples, Graphs and Datasets}
+ Let $\mathbf{I}$, $\mathbf{L}$ and $\mathbf{B}$ be pairwise disjoint infinite sets of \texttt{IRI}s, literals and blank nodes.
+ \vspace{1em}
+ 
+ The infinite set of all \textit{RDF triples} is $\mathcal{T} = \mathbf{IB} \times \mathbf{I} \times \mathbf{IBL}$.
+ \vspace{1em}
+ 
+ An \textit{RDF graph} $G \subset \mathcal{T}$ is a finite set of RDF triples.
+ \vspace{1em}
+ 
+ An \textit{RDF dataset} $\mathcal{D}$ is a set $\{ G_{0}, \langle u_1, G_1 \rangle, \dots , \langle u_n, G_n \rangle \}$, where $G_0$ is the 		default graph, and $G_1, \dots , G_n$ are named graphs with names $u_1, \dots , u_n \in \mathbf{I}$.
+}
+
+\begin{frame}[fragile]
+\frametitle{Resource Description Framework}
+\framesubtitle{Example: RDF graph}
+\begin{lstlisting}[language=ttl]
+@prefix foaf:  <http://xmlns.com/foaf/0.1/> .
+
+_:a  foaf:name   "Johnny Lee Outlaw" .
+_:a  foaf:mbox   <mailto:jlow@example.com> .
+_:b  foaf:name   "Peter Goodguy" .
+_:b  foaf:mbox   <mailto:peter@example.org> .
+_:c  foaf:mbox   <mailto:carol@example.org> .
+\end{lstlisting}
+\begin{figure}
+\includegraphics[width=0.45\textwidth]{graph.pdf}
+\end{figure}
+\end{frame}
+
+
+\begin{frame}[fragile]
+\frametitle{Resource Description Framework}
+\framesubtitle{Simple Interpretations of RDF graphs}
+
+A \textbf{simple interpretation} $\mathcal{I}$ is a tuple $\mathcal{I} = (\mathbb{R}, \mathbb{P}, \circ_\text{Int}, \circ_\text{Ext}, \circ_\text{L} )$ such that
+\begin{itemize}
+\item $\mathbb{R}$ is a non-empty set of resources, called the domain or also universe of discourse of $\mathcal{I}$,
+%\item $\text{LV} \subseteq \text{R}$ is the set of literal values, that contains at least all untyped literals from $V$,
+\item $\mathbb{P}$ is the set of all properties\footnote{Not necessarily disjoint from or a subset of $\mathbb{R}$.},
+\item ${\circ}_\mathbf{Ext}: \mathbb{P} \rightarrow 2^{\mathbb{R} \times \mathbb{R}}$ is a mapping that assigns a binary relational extension to each property,
+\item ${\circ}_\mathbf{Int}: \mathbf{I} \rightarrow ( \mathbb{R} \cup \mathbb{P} )$ is the interpretation mapping that assigns a resource or property to a given \texttt{IRI},
+\item ${\circ}_\mathbf{L}: \mathbf{L} \rightarrow \mathbb{R}$ is a partial mapping from literals into the set of literal values\footnote{The set of literal values is a subset of the set of resources $\mathbb{R}$.}
+\end{itemize}
+\end{frame}
+
+
+\begin{frame}[fragile]
+\frametitle{Resource Description Framework}
+\framesubtitle{s-Models and s-Satisfiability of RDF graphs}
+
+A simple interpretation $\mathcal{I}$ is a \textit{model} of an RDF graph $G$ iff
+\begin{itemize}
+\item If $e \in \mathbf{L}$, then $\mathcal{I}(e) =  {\circ}_\mathbf{L}(e)$.
+\item If $e \in \mathbf{IB}$, then $\mathcal{I}(e) =  {\circ}_\mathbf{Int}(e)$.
+\item If $e = (s, p, o) \in \mathbf{IB} \times \mathbf{I}  \times \mathbf{IBL}$ , then $\mathcal{I}(e) = \top$ iff $\mathcal{I}(p) \in \mathbb{P}$ and $( \mathcal{I}(s), \mathcal{I}(o) ) \in {\circ}_\mathbf{Ext}(\mathcal{I}(p))$.
+\item If $e$ is an RDF graph, then $\mathcal{I}(e) = \bot$ iff $\mathcal{I}(e') = \bot$ for some RDF triple $e' \in e$, otherwise $\mathcal{I}(e) = \top$.
+\end{itemize}
+
+\vspace{2em}
+
+An RDF graph $G$ is (simply) \textit{satisfiable} if a simple interpretation $\mathcal{I}$ exists with $\mathcal{I}(G) = \top$, otherwise $G$ is (simply) \textit{unsatisfiable}.
+
+\end{frame}
+
+
+
+\begin{frame}[fragile]
+\frametitle{Resource Description Framework}
+\framesubtitle{s-Entailment, s-Equivalence and Leanness of RDF graphs}
+
+We say that the RDF graph $G$ (simply) \textit{entails} the RDF graph $H$ ($G \models H$) if and only if every model $\mathcal{I}$ which satisfies $G$ also satisfies $H$. 
+
+\vspace{2em}
+
+Two RDF graphs $G$ and $H$ are \textit{equivalent} ($G \equiv H$) if and only if $G \models H$ and $H \models G$.
+
+\vspace{2em}
+
+An RDF graph $G$ is considered \textit{lean} if and only if there does not exist a proper subgraph $G' \subset G$ such that $G' \models G$.
+\end{frame}
+
+
+
+% ========================================================================================
+\section{More RDF Entailment Regimes}
+\frame{\sectionpage}
+
+\frame{
+\frametitle{More RDF Entailment Regimes}
+\framesubtitle{Literals and Datatypes}
+
+An \textit{RDF datatype} $d$ is defined as a 4-tuple $(\mathcal{L}_{d}, \mathcal{V}_{d}, \mu_{d}, \mathbf{D}_{d})$, where $\mathcal{L}_{d}$ is its lexical space, $\mathcal{V}_{d}$ is its value space, $\mu_{d}$ gives the datatype's lexical-to-value mapping, and $\mathbf{D}_{d}$ is the set of its datatype \texttt{IRI}s. 
+\vspace{2em}
+
+The subset $\mathbf{L}$ of RDF terms is called \textit{RDF literals} and characterized as 
+$\mathbf{L} = \mathbf{L}_{t} \cup \mathbf{L}_{l}$ where $\mathcal{L}$ is the infinite set of \textbf{lexical forms} and $\mathbf{L}_{t} = ( \mathcal{L} \times \binom{\mathbf{D}}{1} )$ with $\mathbf{D}$ is the set of RDF datatype \texttt{IRI}s, and $\mathbf{L}_{l} = ( \mathcal{L} \times \{ \mathtt{rdf:langString} \} \times \mathcal{T})$ with $\mathcal{T}$ is the is the set of non-empty and well-formed \textbf{language tags}.
+}
+
+\frame{
+\frametitle{More RDF Entailment Regimes}
+\framesubtitle{D-Interpretation, D-Satisfiability and D-Entailment}
+
+Let $\mathbf{D}$ be the set of datatype \texttt{IRI}s. A \textit{(simple) D-interpretation} $\mathcal{I}_{\mathbf{D}}$ is a s-interpretation satisfying
+\footnotesize
+\begin{itemize}
+\item ${\circ}_\mathbf{L}(l) = \mu_{\mathcal{I}(\text{ddd})}(\text{sss}) = \mu_{d}(\text{sss}) \iff l = (\text{sss}, \text{ddd}) \in \mathbf{L}_{t}$,
+\item ${\circ}_\mathbf{L}(l) = ( \text{sss}, \text{ttt} ) \iff l = (\text{sss}, \mathtt{rdf:langString}, \text{ttt}) \in \mathbf{L}_{l}$,
+\item ${\circ}_\mathbf{L}(l) = \bot$, otherwise
+\end{itemize}
+\normalsize
+under the condition that $\text{sss} \in \mathcal{L}$, $\text{ttt} \in \mathcal{T}$, $\mathtt{rdf:langString} \in \mathbf{D}$ and $\text{ddd} \in \mathbf{D}$.
+\vspace{2em}
+
+An RDF graph $G$ is (simply) \textit{D-satisfiable} if a D-interpretation $\mathcal{I}_{\mathbf{D}}$ exists with $\mathcal{I}_{\mathbf{D}}(G) = \top$, otherwise $G$ is (simply) \textit{D-unsatisfiable}.
+\vspace{2em}
+
+An RDF graph $G$ (simply) \textit{D-entails} an RDF graph $H$, when every D-interpretation which D-satisfies $G$ also D-satisfies $H$.
+}
+
+
+\frame{
+\frametitle{More RDF Entailment Regimes}
+\framesubtitle{RDF Vocabulary and Axiomatic Triples}
+The \textit{RDF Vocabulary} $\text{Voc}_{\text{RDF}}$ is an infinite set  of RDF terms given as follows: 
+\tiny
+\begin{eqnarray*}
+\text{Voc}_{\text{RDF}} = \{ &&\text{\texttt{rdf:type}}, \text{\texttt{rdf:subject}}, \text{\texttt{rdf:predicate}}, \text{\texttt{rdf:object}}, \text{\texttt{rdf:first}}, \text{\texttt{rdf:rest}}, \text{\texttt{rdf:value}}, \\
+				       	 &&\text{\texttt{rdf:nil}}, \text{\texttt{rdf:List}}, \text{\texttt{rdf:langString}}, \text{\texttt{rdf:Property}},\text{\texttt{rdf:\_1}}, \text{\texttt{rdf:\_2}}, \dots \}
+\end{eqnarray*}
+\normalsize
+
+The infinite set of \textit{axiomatic RDF triples} is given as follows:
+\tiny
+\begin{eqnarray*}
+\{ &&( \text{\texttt{rdf:type}}, \text{\texttt{rdf:type}}, \text{\texttt{rdf:Property}} ) , ( \text{\texttt{rdf:subject}}, \text{\texttt{rdf:type}}, \text{\texttt{rdf:Property}} ) ,\\
+&&( \text{\texttt{rdf:predicate}}, \text{\texttt{rdf:type}}, \text{\texttt{rdf:Property}} ) , ( \text{\texttt{rdf:object}}, \text{\texttt{rdf:type}}, \text{\texttt{rdf:Property}} ) ,\\
+&&( \text{\texttt{rdf:first}}, \text{\texttt{rdf:type}}, \text{\texttt{rdf:Property}} ) , ( \text{\texttt{rdf:rest}}, \text{\texttt{rdf:type}}, \text{\texttt{rdf:Property}} ) ,\\
+&&( \text{\texttt{rdf:value}}, \text{\texttt{rdf:type}}, \text{\texttt{rdf:Property}} ) , ( \text{\texttt{rdf:nil}}, \text{\texttt{rdf:type}}, \text{\texttt{rdf:List}} ) ,\\
+&&( \text{\texttt{rdf:\_1}}, \text{\texttt{rdf:type}}, \text{\texttt{rdf:Property}} ) , ( \text{\texttt{rdf:\_2}}, \text{\texttt{rdf:type}}, \text{\texttt{rdf:Property}} ) , \dots \}
+\end{eqnarray*}
+\normalsize
+}
+
+\frame{
+\frametitle{More RDF Entailment Regimes}
+\framesubtitle{RDF-Interpretation, RDF-Satisfiability and RDF-Entailment}
+\small
+An \textit{RDF-interpretation recognising D} is a (simple) D-interpretation $\mathcal{I}_{\mathbf{D}}$ with $\text{\texttt{xsd:string}} \in \mathbf{D}$ and $\text{\texttt{rdf:langString}} \in \mathbf{D}$ satisfying the following conditions
+\begin{itemize}
+\item $( x, \mathcal{I}_{\mathbf{D}}(\text{\texttt{rdf:Property}}) ) \in {\circ}_\mathbf{Ext}(\mathcal{I}_{\mathbf{D}}(\text{\texttt{rdf:type}})) \iff x \in \mathbb{P}$
+\item $\forall \text{ddd} \in \mathbf{D}: ( x, \mathcal{I}_{\mathbf{D}}(\text{ddd}) ) \in {\circ}_\mathbf{Ext}(\mathcal{I}_{\mathbf{D}}(\text{\texttt{rdf:type}})) \iff x \in \mathcal{V}_{\mathcal{I}_{\mathbf{D}}(\text{ddd})}$
+\end{itemize}
+as well as every RDF triple in the infinite set of \textit{RDF axioms}.
+\vspace{2em}
+
+An RDF graph $G$ is \textit{RDF-satisfiable} (recognising $\mathbf{D}$) if there exists an RDF-interpretation (recognising $\mathbf{D}$) with $\mathcal{I}_{\mathbf{D}}(G) = \top$, otherwise $G$ is \textit{RDF-unsatisfiable}.
+\vspace{2em}
+
+An RDF graph $G$ \textit{RDF-entails} an RDF graph $H$ (recognising $\mathbf{D}$), when every RDF-interpretation (recognising $\mathbf{D}$) which RDF-satisfies $G$ also RDF-satisfies $H$.
+\normalsize
+}
+
+
+
+\frame{
+\frametitle{More RDF Entailment Regimes}
+\framesubtitle{Overview}
+
+\begin{centering}
+\begin{figure}
+\includegraphics[width=0.9\linewidth]{entailment_regimes.pdf}
+\end{figure}        
+\end{centering}
+
+}
+
+
+% ========================================================================================
+\section{Graph Morphisms and RDF}
+\frame{\sectionpage}
+
+\frame{
+\frametitle{Graph Morphisms}
+\framesubtitle{Overview}
+\begin{center}
+\begin{tabular}{ccc}
+Homomorphism & $\Leftarrow$ & Isomorphism \\
+$\Uparrow$ & & $\Uparrow$ \\
+Endomorphism & $\Leftarrow$ & Automorphism
+\end{tabular}
+\end{center}
+}
+
+
+\frame{
+\frametitle{Graph Homomorphism}
+\framesubtitle{Definition}
+\begin{center}
+\begin{tabular}{ccc}
+\textbf{Homomorphism} & $\Leftarrow$ & Isomorphism \\
+$\Uparrow$ & & $\Uparrow$ \\
+Endomorphism & $\Leftarrow$ & Automorphism
+\end{tabular}
+\end{center}
+
+\vspace{2em}
+
+Given two undirected graphs $G = (V_G, E_G)$ and $H = (V_H, E_H)$, a mapping $\beta : V_G \rightarrow V_H$ is a \textit{homomorphism} from $G$ to $H$ if and only if 
+\begin{equation*}
+(u, v) \in E_G \implies (\beta(u), \beta(v)) \in E_H
+\end{equation*}
+}
+
+
+\frame{
+\frametitle{Graph Isomorphism}
+\framesubtitle{Definition}
+\begin{center}
+\begin{tabular}{ccc}
+Homomorphism & $\Leftarrow$ & \textbf{Isomorphism} \\
+$\Uparrow$ & & $\Uparrow$ \\
+Endomorphism & $\Leftarrow$ & Automorphism
+\end{tabular}
+\end{center}
+
+\vspace{2em}
+
+Given two undirected graphs $G = (V_G, E_G)$ and $H = (V_H, E_H)$, a bijection $\beta : V_G \rightarrow V_H$ is an \textit{isomorphism} from $G$ to $H$ if and only if
+\begin{equation*}
+(u,v) \in E_G \Leftrightarrow (\beta(u), \beta(v)) \in E_H
+\end{equation*}
+}
+
+\frame{
+\frametitle{Graph Endomorphism}
+\framesubtitle{Definition}
+\begin{center}
+\begin{tabular}{ccc}
+Homomorphism & $\Leftarrow$ & Isomorphism \\
+$\Uparrow$ & & $\Uparrow$ \\
+\textbf{Endomorphism} & $\Leftarrow$ & Automorphism
+\end{tabular}
+\end{center}
+
+\vspace{2em}
+
+Given an undirected graph $G = (V_G, E_G)$, a mapping $\beta : V_G \rightarrow V_G$ is an \textit{endomorphism} if and only if it is an homomorphism from $G$ to $G$.
+}
+
+\frame{
+\frametitle{Graph Automorphism}
+\framesubtitle{Definition}
+\begin{center}
+\begin{tabular}{ccc}
+Homomorphism & $\Leftarrow$ & Isomorphism \\
+$\Uparrow$ & & $\Uparrow$ \\
+Endomorphism & $\Leftarrow$ & \textbf{Automorphism}
+\end{tabular}
+\end{center}
+
+\vspace{2em}
+
+Given an undirected graph $G = (V_G, E_G)$, a mapping $\beta : V_G \rightarrow V_G$ is an \textit{automorphism} if and only if it is an isomorphism from $G$ to $G$.
+}
+
+\frame{
+\frametitle{Morphisms on RDF Graphs}
+\framesubtitle{Blank node mappings and RDF homomorphisms}
+
+\begin{center}
+\begin{tabular}{ccc}
+\textbf{Homomorphism} & $\Leftarrow$ & Isomorphism \\
+$\Uparrow$ & & $\Uparrow$ \\
+Endomorphism & $\Leftarrow$ & Automorphism
+\end{tabular}
+\end{center}
+
+\vspace{2em}
+
+Let $\mu: \mathbf{ILB} \rightarrow \mathbf{ILB}$ be a partial mapping of RDF terms to RDF terms.
+If $\mu$ is the identity on $\mathbf{IL}$, we call it a \textit{blank node mapping}. 
+
+\vspace{2em}
+
+Two RDF graphs $G$ and $H$ are \textit{homomorphic} if and only if there exists a blank node mapping $\mu$ such that $\mu(H) \subseteq G$.
+}
+
+\frame{
+\frametitle{Morphisms on RDF Graphs}
+\framesubtitle{RDF isomorphism}
+
+\begin{center}
+\begin{tabular}{ccc}
+Homomorphism & $\Leftarrow$ & \textbf{Isomorphism} \\
+$\Uparrow$ & & $\Uparrow$ \\
+Endomorphism & $\Leftarrow$ & Automorphism
+\end{tabular}
+\end{center}
+
+\vspace{2em}
+
+Two RDF graphs $G$ and $H$ are \textit{isomorphic}, denoted $G \cong H$, if and only if there exists a \textit{bijective} blank node mapping $\mu$ such that $\mu(G) = H$, in which case we call $\mu$ an \textit{isomorphism}.
+}
+
+\frame{
+\frametitle{Morphisms on RDF Graphs}
+\framesubtitle{RDF automorphism}
+
+\begin{center}
+\begin{tabular}{ccc}
+Homomorphism & $\Leftarrow$ & Isomorphism \\
+$\Uparrow$ & & $\Uparrow$ \\
+Endomorphism & $\Leftarrow$ & \textbf{Automorphism}
+\end{tabular}
+\end{center}
+
+\vspace{2em}
+
+A blank node mapping $\mu$ is an \textit{automorphism} of an RDF graph $G$ if $\mu(G) = G$. 
+If $\mu$ is the identity mapping on blank nodes in $G$ then $\mu$ is a \textit{trivial automorphism}; otherwise $\mu$ is a \textit{non-trivial automorphism}. 
+We denote the set of all automorphisms of $G$ by $Aut(G)$.
+}
+
+
+\frame{
+\frametitle{Morphisms on RDF Graphs}
+\framesubtitle{RDF endomorphism}
+
+\begin{center}
+\begin{tabular}{ccc}
+Homomorphism & $\Leftarrow$ & Isomorphism \\
+$\Uparrow$ & & $\Uparrow$ \\
+\textbf{Endomorphism} & $\Leftarrow$ & Automorphism
+\end{tabular}
+\end{center}
+
+\vspace{2em}
+
+Given an RDF graph $G$, we denote by $End(G)$ all blank node mappings with domain $terms(G)$ that map $G$ to a subgraph of itself: 
+\begin{equation*}
+End(G) = \{ \mu \; | \; \mu(G) \subseteq G \land dom(\mu) = terms(G) \}
+\end{equation*}
+If $\mu(G) \subset G$, we call it a proper endomorphism.
+}
+
+
+\frame{
+\frametitle{Morphisms on RDF Graphs}
+\framesubtitle{RDF core endomorphism}
+
+\begin{center}
+\begin{tabular}{ccc}
+Homomorphism & $\Leftarrow$ & Isomorphism \\
+$\Uparrow$ & & $\Uparrow$ \\
+\textbf{Endomorphism} & $\Leftarrow$ & Automorphism
+\end{tabular}
+\end{center}
+
+\vspace{2em}
+
+We denote by $CEnd(G) \subset End(G)$ the set of all mappings that map to the fewest unique blank nodes
+\footnotesize\begin{equation*}
+CEnd(G) = \{  \mu \in End(G) \; | \; \nexists \mu' \in End(G): | codom(\mu' ) \cap \mathbf{B} | < | codom(\mu) \cap \mathbf{B} | \}
+\end{equation*}
+\normalsize
+We call $CEnd(G)$ the \textit{core endomorphisms} of $G$.
+}
+
+
+% ========================================================================================
+\section{RDF Morphisms and s-Entailment}
+\frame{\sectionpage}
+
+\frame{
+\frametitle{RDF Morphisms and s-Entailment}
+\framesubtitle{s-Entailment}
+We say that the RDF graph $G$ \textit{s-entails} the RDF graph $H$ ($G \models H$) if and only if every model $\mathcal{I}$ which satisfies $G$ also satisfies $H$. 
+\vspace{2em}
+
+An RDF graph $G$ \textit{s-entails} an RDF graph $H$ ($G \models H$) if and only if $\exists \mu \in Hom(H) : \mu(H) \subseteq G$.
+}
+
+\frame{
+\frametitle{RDF Morphisms and s-Entailment}
+\framesubtitle{s-Equivalence}
+An RDF graph $G$ is \textit{s-equivalent} with an RDF graph $H$ if it holds that $G$ and $H$ are isomorphic, i.e. $(G \cong H) \Rightarrow (G \equiv H)$.
+However, $(G \equiv H) \nRightarrow (G \cong H)$!
+\vspace{2em}
+
+An RDF graph $G$ is \textit{s-equivalent} with an RDF graph $H$ if and only if $\exists \mu \in CEnd(G), \mu' \in CEnd(H): \mu(G) \cong \mu'(H)$.
+}
+
+
+% ========================================================================================
+\section{Morphisms, s-Entailment and Query Answering}
+\frame{\sectionpage}
+
+\frame{
+\frametitle{Morphisms, s-Entailment and Query Answering}
+\framesubtitle{Decision and Evaluation Problem}
+
+Given a query graph $q \in \mathbf{IB}  \times \mathbf{IB} \times \mathbf{IBL}$ and an RDF graph $G \subset \mathbf{IB} \times \mathbf{I} \times \mathbf{IBL}$.
+\vspace{2em}
+
+We say that $G$ \textit{answers} $q$ if and only if $G \models q$.
+\vspace{2em}
+
+The set $\{ \mu: \mathbf{IBL} \rightarrow \mathbf{ILB} \; | \; \mu = id_{\mathbf{IL}} \; \land \; \exists G' \subseteq G : \mu(q) \cong G' \}$ is the set of all solution mappings of $q$ with respect to $G$. 
+}
+
+
+
+% ========================================================================================
+
+\section{SPARQL Protocol and RDF Query Language}	
+\frame{\sectionpage}
+
+\frame{
+\frametitle{SPARQL Protocol and RDF Query Language}
+\framesubtitle{SPARQL graph pattern expressions: Syntax}
+
+Let $\mathbf{V}$ denote the infinite set of variables that is disjoint from $\mathbf{IBL}$.\\
+\textit{SPARQL graph pattern} expressions are defined recursively as:
+\vspace{2em}
+
+\tiny
+\begin{enumerate}[(1)]
+\item	A triple pattern $t \in \mathbf{IBV}  \times \mathbf{IBV} \times \mathbf{IBLV}$ is a graph pattern.
+\item	If $P_1$ and $P_2$ are graph patterns, then expression $(P_{1} \; \text{\texttt{AND}} \; P_2)$, $(P_{1} \; \text{\texttt{UNION}} \; P_2)$, $(P_{1} \; \text{\texttt{OPT}} \; P_2)$ and $(P_{1} \; \text{\texttt{MINUS}} \; P_2)$ are graph patterns.
+%\item	If $P_1$ and $P_2$ are graph patterns, then the expression $(P_{1} \; \text{\texttt{UNION}} \; P_2)$ is a (\textit{disjunctive}) graph pattern.
+%\item	If $P_1$ and $P_2$ are graph patterns, then the expression $(P_{1} \; \text{\texttt{OPT}} \; P_2)$ is a (\textit{optional}) graph pattern.
+\item If $P$ is a graph pattern and $R$ is a SPARQL built-in condition, then the expression $(P \; \text{\texttt{FILTER}} \; R)$ is a graph pattern.
+\item If $P$ is a graph pattern and $a \in \mathbf{IV}$, then the expression  $(a \; \text{\texttt{GRAPH}} \; P)$ is a graph pattern.
+\item If $P$ is a graph pattern and $a \in \mathbf{IV}$, then the expression  $(a \; \text{\texttt{SERVICE}} \; P)$ is a graph pattern.
+\end{enumerate}
+\normalsize
+}
+
+\frame{
+\frametitle{SPARQL Protocol and RDF Query Language}
+\framesubtitle{SPARQL graph pattern expressions: Semantics}
+The semantics of SPARQL graph patterns is defined in terms of an evaluation function $\llbracket \cdot \rrbracket_{G}^{\mathcal{D}}$.
+\vspace{2em}
+
+$\llbracket \cdot \rrbracket_{G}^{\mathcal{D}}$ returns a \textit{set of mappings} for a given SPARQL graph pattern expression, a fixed and \textit{active dataset} $\mathcal{D}$ and an \textit{active graph} $G$ within $\mathcal{D}$.
+\vspace{2em}
+
+A \textit{mapping} is a partial function $\mu: \mathbf{V} \rightarrow \mathbf{IBL}$.
+}
+
+\frame{
+\frametitle{SPARQL Protocol and RDF Query Language}
+\framesubtitle{Mappings}
+
+
+Two mappings $\mu_1$ and $\mu_2$ are \textit{compatible} (written as $\mu_1 \sim \mu_2$) if $\forall v \in dom(\mu_1) \cap dom(\mu_2): \mu_1(v) = \mu_2(v)$.
+\vspace{2em}
+
+The mapping with empty domain, denoted by $\mu_{\varnothing}$, is compatible with every other mapping.
+\vspace{2em}
+If $\mu_1 \sim \mu_2$, then we write $\mu_1 \cup \mu_2$ for the mapping obtained by \textit{extending} $\mu_1$ according to $\mu_2$ on all the variables in $dom(\mu_2) \setminus dom(\mu_1)$.
+
+}
+
+\frame{
+\frametitle{SPARQL Protocol and RDF Query Language}
+\framesubtitle{Mappings}
+Given two sets of mappings $\Omega_1$ and $\Omega_2$, we define
+
+\begin{enumerate}[(1)]
+\setlength\itemsep{1em}
+ 	\item $(\Omega_1 \Join \Omega_2) = \{ \mu_1 \cup \mu_2 \; | \; \mu_1 \in \Omega_1, \; \mu_2 \in \Omega_2, \; \mu_1 \sim \mu_2 \}$
+	\item $(\Omega_1 \cup \Omega_2) = \{ \mu \; | \; \mu \in (\Omega_1 \cup \Omega_2) \}$
+	\item $(\Omega_1 \setminus \Omega_2) = \{ \mu \in \Omega_1 \; | \; \forall \mu' \in \Omega_2 : \mu \not\sim \mu' \}$
+	\item $(\Omega_1 \leftouterjoin \Omega_2) = (\Omega_1 \Join \Omega_2 ) \cup (\Omega_1 \setminus \Omega_2)$
+	\item $\pi_V (\Omega) = \{ \mu' \; | \; \exists \mu \in \Omega: \mu' \subseteq \mu, dom(\mu') = V \cap dom(\mu) \}$
+ \end{enumerate}
+}
+
+\begin{frame}[allowframebreaks]
+\frametitle{SPARQL Protocol and RDF Query Language}
+\framesubtitle{SPARQL graph pattern expressions: Semantics}
+Evaluation $\llbracket P \rrbracket_{G}^{\mathcal{D}}$ of a SPARQL graph pattern $P$ over a dataset $\mathcal{D}$ with active graph $G$ is defined recursively as
+\vspace{2em}
+
+\footnotesize
+\begin{enumerate}[(1)]
+\setlength\itemsep{1em}
+	\item	If $P$ is a triple pattern, then  $\llbracket P \rrbracket_{G}^{\mathcal{D}} = \{ \mu: var(P) \to \mathbf{IBL} \; | \; \mu(P) \in G \}$.
+	\item If $P = ( P_1 \; \text{\texttt{AND}} \; P_2 )$, then $\llbracket P \rrbracket_{G}^{\mathcal{D}} = \llbracket P_1 \rrbracket_G \Join \llbracket P_2 \rrbracket_G$.
+	\item If $P = ( P_1 \; \text{\texttt{UNION}} \; P_2 )$, then $\llbracket P \rrbracket_{G}^{\mathcal{D}} = \llbracket P_1 \rrbracket_G \cup \llbracket P_2 	\rrbracket_G$.
+	\item If $P = ( P_1 \; \text{\texttt{OPT}} \; P_2 )$, then $\llbracket P \rrbracket_{G}^{\mathcal{D}} = \llbracket P_1 \rrbracket_G \leftouterjoin \llbracket P_2 \rrbracket_G$.
+	\item If $P = ( P_1 \; \text{\texttt{MINUS}} \; P_2 )$, then $\llbracket P \rrbracket_{G}^{\mathcal{D}} = \llbracket P_1 \rrbracket_G \setminus \llbracket P_2 \rrbracket_G$.
+	\item If $P = ( P_1 \; \text{\texttt{FILTER}} \; R )$, then $\llbracket P \rrbracket_G = \{ \mu \in \llbracket P_1 \rrbracket _G \; | \; \mu \models R \}$.
+	\item If $P = (g \; \text{\texttt{GRAPH}} \; P_1)$ with $g \in \mathbf{IV}$, then
+	\begin{equation*}
+	\llbracket P \rrbracket_{G}^{\mathcal{D}} = \begin{cases}
+	\llbracket P_1 \rrbracket^{\mathcal{D}}_{\sigma_{\mathcal{D}}\lbrack g \rbrack} \Leftrightarrow g \in \nu_{\mathcal{D}}  \\
+%\{ \mu_{\varnothing} \} \Leftrightarrow g \not\in \nu_{\mathcal{D}}\\
+	\bigcup_{u \in \mathbf{I}}(\llbracket P_1 \rrbracket^{\mathcal{D}}_{\sigma_{\mathcal{D}}\lbrack u \rbrack} \Join \{ \lbrack g \mapsto u \rbrack \} ) \Leftrightarrow g \in \mathbf{V}
+%\{ \mu_\varnothing \} \Leftrightarrow a \in \mathbf{I} , \sigma_{\mathcal{D}}\lbrack a \rbrack = \varnothing \\
+%\{ \mu \cup \mu_{a} \; | \; \exists g \in \nu_{\mathcal{D}}: \mu_{a} = \lbrack a \rightarrow g \rbrack, \mu \in \llbracket P_1 \rrbracket^{\sigma_{\mathcal{D}}\lbrack g \rbrack} \land \mu_c \sim \mu \} \; \text{iff} \; a \in \mathbf{V}\\
+%\{ \mu \cup \lbrack a \mapsto g \rbrack \; | \; \exists g \in \nu_{\mathcal{D}}: \mu \in \llbracket P_1 \rrbracket^{\sigma_{\mathcal{D}}\lbrack g \rbrack} , \mu \sim \lbrack a \mapsto g \rbrack  \} \Leftrightarrow a \in \mathbf{V}
+	\end{cases}
+	\end{equation*}
+	\item If $P = (s \; \text{\texttt{SERVICE}} \; P_1)$ with $s \in \mathbf{IV}$, then
+	\begin{equation*}
+		\llbracket P \rrbracket_{G}^{\mathcal{D}} = \begin{cases}
+		\llbracket P_1 \rrbracket^{\mathcal{D}}_{\sigma_{\mathcal{D}}\lbrack s \rbrack} \Leftrightarrow s \in \mathbf{I}  \\
+		\{ \mu_{\varnothing} \} \Leftrightarrow s \not\in \nu_{\mathcal{D}}\\ 
+		TBD
+		\end{cases}
+	\end{equation*}
+\end{enumerate}
+\normalsize
+\end{frame}
+
+%\frame{
+%\frametitle{SPARQL Protocol and RDF Query Language}
+%\framesubtitle{SPARQL graph pattern expressions: Semantics}
+%\footnotesize
+%\begin{enumerate}[(1)]
+%\setlength\itemsep{1em}
+%\setcounter{enumi}{5}
+%%\item If $P = ( P_1 \; \text{\texttt{FILTER}} \; R )$, then $\llbracket P \rrbracket_G = \{ \mu \in \llbracket P_1 \rrbracket _G \; | \; \mu \models R \}$..
+%\item If $P = (g \; \text{\texttt{GRAPH}} \; P_1)$ with $g \in \mathbf{IV}$, then
+%\begin{equation*}
+%\llbracket P \rrbracket_{G}^{\mathcal{D}} = \begin{cases}
+%\llbracket P_1 \rrbracket^{\mathcal{D}}_{\sigma_{\mathcal{D}}\lbrack g \rbrack} \Leftrightarrow g \in \nu_{\mathcal{D}}  \\
+%%\{ \mu_{\varnothing} \} \Leftrightarrow g \not\in \nu_{\mathcal{D}}\\
+%\bigcup_{u \in \mathbf{I}}(\llbracket P_1 \rrbracket^{\mathcal{D}}_{\sigma_{\mathcal{D}}\lbrack u \rbrack} \Join \{ \lbrack g \mapsto u \rbrack \} ) \Leftrightarrow g \in \mathbf{V}
+%%\{ \mu_\varnothing \} \Leftrightarrow a \in \mathbf{I} , \sigma_{\mathcal{D}}\lbrack a \rbrack = \varnothing \\
+%%\{ \mu \cup \mu_{a} \; | \; \exists g \in \nu_{\mathcal{D}}: \mu_{a} = \lbrack a \rightarrow g \rbrack, \mu \in \llbracket P_1 \rrbracket^{\sigma_{\mathcal{D}}\lbrack g \rbrack} \land \mu_c \sim \mu \} \; \text{iff} \; a \in \mathbf{V}\\
+%%\{ \mu \cup \lbrack a \mapsto g \rbrack \; | \; \exists g \in \nu_{\mathcal{D}}: \mu \in \llbracket P_1 \rrbracket^{\sigma_{\mathcal{D}}\lbrack g \rbrack} , \mu \sim \lbrack a \mapsto g \rbrack  \} \Leftrightarrow a \in \mathbf{V}
+%\end{cases}
+%\end{equation*}
+%\item If $P = (s \; \text{\texttt{SERVICE}} \; P_1)$ with $s \in \mathbf{IV}$, then
+%\begin{equation*}
+%\llbracket P \rrbracket_{G}^{\mathcal{D}} = \begin{cases}
+%\llbracket P_1 \rrbracket^{\mathcal{D}}_{\sigma_{\mathcal{D}}\lbrack s \rbrack} \Leftrightarrow s \in \mathbf{I}  \\
+%\{ \mu_{\varnothing} \} \Leftrightarrow s \not\in \nu_{\mathcal{D}}\\ 
+%TBD
+%\end{cases}
+%\end{equation*}
+%\end{enumerate}
+%\normalsize
+%}
+
+\frame{
+\frametitle{SPARQL Protocol and RDF Query Language}
+\framesubtitle{SPARQL \texttt{SELECT} Queries}
+A \texttt{SELECT} query $\mathbf{q}$ is an expression of the form 
+\begin{equation*}
+\mathbf{q} = \text{\texttt{SELECT}}_{V} \; \text{\texttt{WHERE}} \; \{ \; P \; \}
+\end{equation*}
+where $V \subseteq var(P)$, and $P$ is a SPARQL graph pattern.
+\vspace{2em}
+
+The semantics of a  \texttt{SELECT} query over an input dataset $\mathcal{D}$ with active graph $G$ is given as 
+\begin{equation*}
+ans(\mathbf{q},\mathcal{D}) = \pi_V ( \llbracket P \rrbracket^{\mathcal{D}}_{G}) 
+\end{equation*}
+}
+
+\begin{frame}[fragile]
+\frametitle{SPARQL Protocol and RDF Query Language}
+\framesubtitle{Example}
+
+RDF Graph
+\begin{center}
+\begin{tabular}{c}
+\begin{lstlisting}[language=ttl,basicstyle=\tiny]
+@prefix foaf:  <http://xmlns.com/foaf/0.1/> .
+
+_:a  foaf:name   "Johnny Lee Outlaw" .
+_:a  foaf:mbox   <mailto:jlow@example.com> .
+_:b  foaf:name   "Peter Goodguy" .
+_:b  foaf:mbox   <mailto:peter@example.org> .
+_:c  foaf:mbox   <mailto:carol@example.org> .
+\end{lstlisting}
+\end{tabular}
+\end{center}
+
+SPARQL Query
+\begin{center}
+\begin{tabular}{c}
+\begin{lstlisting}[language=sparql,basicstyle=\tiny]
+PREFIX foaf: <http://xmlns.com/foaf/0.1/>
+
+SELECT ?name ?mbox
+WHERE { ?x foaf:name ?name ; foaf:mbox ?mbox . }
+\end{lstlisting}
+\end{tabular}
+\end{center}
+
+Result
+\begin{center}
+\begin{tiny}
+\begin{tabular}{ | c | c | }
+\hline
+name & mbox \\
+\hline
+"Johnny Lee Outlaw"	&  mailto:jlow@example.com \\
+\hline
+"Peter Goodguy" & mailto:peter@example.org \\
+\hline
+\end{tabular}
+\end{tiny}
+\end{center}
+\end{frame}
+
+
+\frame{
+\frametitle{SPARQL Protocol and RDF Query Language}
+\framesubtitle{SPARQL \texttt{CONSTRUCT} Queries}
+A \texttt{CONSTRUCT} query $\mathbf{q}$ is an expression of the form 
+\begin{equation*}
+\mathbf{q} = \text{\texttt{CONSTRUCT}} \; H \; \text{\texttt{WHERE}} \; \{ \; P \; \}
+\end{equation*}
+where $H \subset \mathbf{IBV} \times \mathbf{IBV} \times \mathbf{IBLV}$ is a finite set of triple patterns, called a template, and $P$ is a SPARQL graph pattern.
+\vspace{2em}
+
+The semantics of a  \texttt{CONSTRUCT} query over an input dataset $\mathcal{D}$ with active graph $G$ is given as 
+\begin{equation*}
+ans(\mathbf{q},\mathcal{D}) = \{ \mu(t) \| \mu \in \llbracket P \rrbracket^{\mathcal{D}}_{G}, t \in H \}
+\end{equation*}
+}
+
+\begin{frame}[fragile]
+\frametitle{SPARQL Protocol and RDF Query Language}
+\framesubtitle{Example}
+
+RDF Graph
+\begin{center}
+\begin{tabular}{c}
+\begin{lstlisting}[language=ttl,basicstyle=\tiny]
+@prefix org:    <http://example.com/ns#> .
+
+_:a  org:employeeName   "Alice" .
+_:a  org:employeeId     12345 .
+_:b  org:employeeName   "Bob" .
+_:b  org:employeeId     67890 .
+\end{lstlisting}
+\end{tabular}
+\end{center}
+
+SPARQL Query
+\begin{center}
+\begin{tabular}{c}
+\begin{lstlisting}[language=sparql,basicstyle=\tiny]
+PREFIX foaf:   <http://xmlns.com/foaf/0.1/>
+PREFIX org:    <http://example.com/ns#>
+
+CONSTRUCT { ?x foaf:name ?name }
+WHERE  { ?x org:employeeName ?name }
+\end{lstlisting}
+\end{tabular}
+\end{center}
+
+Result
+\begin{center}
+\begin{tabular}{c}
+\begin{lstlisting}[language=ttl,basicstyle=\tiny]
+@prefix org: <http://example.com/ns#> .
+      
+_:x foaf:name "Alice" .
+_:y foaf:name "Bob" .\end{lstlisting}
+\end{tabular}
+\end{center}
+\end{frame}
+
+
+% ========================================================================================
+\section{SPARQL Query Containment and Equivalence}
+\frame{\sectionpage}
+
+\frame{
+\frametitle{SPARQL Query Containment}
+\framesubtitle{Definition}
+Qu‹ery containment is the problem of deciding whether the result set of one query is included in the result set of another.
+\vspace{2em}
+
+Given two queries $q_1$ and $q_2$, we say that $q_2$ \textit{contains} $q_1$ iff
+\begin{equation*}
+q_1 \sqsubseteq q_2 \Leftrightarrow \forall G\subset \mathcal{T}: ans(\mathbf{q_1}, \{ G \}) \subseteq ans(\mathbf{q_2}, \{ G \})
+\end{equation*}
+\vspace{2em}
+
+Note that this definition does \textit{not} depend on a specific RDF graph or RDF dataset!
+}
+
+\begin{frame}[fragile]
+\frametitle{SPARQL Query Containment}
+\framesubtitle{Example}
+
+SPARQL Query $q_1$
+\begin{center}
+\begin{tabular}{c}
+\begin{lstlisting}[language=sparql,basicstyle=\tiny]
+PREFIX ex: <http://example.com/ns#>
+
+SELECT ?x ?y ?z 
+WHERE { 
+  ?x ex:sister ?y . 
+  ?y ex:name ?z . 
+}
+
+
+\end{lstlisting}
+\end{tabular}
+\end{center}
+
+SPARQL Query $q_2$
+\begin{center}
+\begin{tabular}{c}
+\begin{lstlisting}[language=sparql,basicstyle=\tiny]
+SELECT *
+WHERE { ?s ?p ?o. }
+\end{lstlisting}
+\end{tabular}
+\end{center}
+
+\end{frame}
+
+\frame{
+\frametitle{SPARQL Query Equivalence}
+\framesubtitle{Definition}
+Qu‹ery equivalence is the problem of deciding whether the result set of one query is equivalent to the result set of another.
+\vspace{2em}
+
+Given two queries $q_1$ and $q_2$, we say that $q_1$ and $q_2$ are \textit{equivalent} iff
+\begin{equation*}
+q_1 \equiv q_2 \Leftrightarrow q_1 \sqsubseteq q_2 \land q_2 \sqsubseteq q_1
+\end{equation*}
+\vspace{2em}
+
+Note that definition of query containment and equivalence does \textit{not} depend on a specific RDF graph or RDF dataset!
+}
+
+\begin{frame}[fragile]
+\frametitle{SPARQL Query Equivalence}
+\framesubtitle{Example}
+
+SPARQL Query $q_1$
+\begin{center}
+\begin{tabular}{c}
+\begin{lstlisting}[language=sparql,basicstyle=\tiny]
+PREFIX ex: <http://example.com/ns#>
+
+SELECT ?z 
+WHERE {
+  { ?x ex:sister ?y . 
+    ?y ex:name ?z . }
+  { ?w ex:mother ?x . }
+  UNION 
+  { ?w ex:father ?x. } 
+}
+
+\end{lstlisting}
+\end{tabular}
+\end{center}
+
+SPARQL Query $q_2$
+\begin{center}
+\begin{tabular}{c}
+\begin{lstlisting}[language=sparql,basicstyle=\tiny]
+PREFIX ex: <http://example.com/ns#>
+
+SELECT ?n 
+WHERE {
+  { ?s :name ?n . 
+    ?c :mother ?p . 
+    ?p :sister ?s . }
+  UNION
+  { ?s :name ?n . 
+    ?c :father ?p . 
+    ?p :sister ?s . } 
+}
+\end{lstlisting}
+\end{tabular}
+\end{center}
+\end{frame}
+
+\frame{
+\frametitle{SPARQL Query Containment \& Equivalence}
+\framesubtitle{Motivation}
+\textit{Rewriting}: find a \textit{minimal} query equivalent to the original one 
+\vspace{2em}
+
+\textit{Optimization}: reduce the computational cost of query evaluation using minimized queries
+\vspace{2em}
+
+\textit{Caching}:  increase throughput of query processing by re-using work done for (containing) previous queries
+\vspace{2em}
+
+\textit{Composition}: perform (partial) composition of \texttt{CONSTRUCT} queries $q_1$ and $q_2$ where $P_{q_2} \sqsubseteq H_{q_1}$
+}
+
+
+\begin{frame}[allowframebreaks]
+\frametitle{SPARQL Query Containment \& Equivalence}
+\framesubtitle{Related Work}
+\tiny
+\nocite{*}
+\bibliographystyle{apalike}
+\bibliography{Entailment.bib,Fragments.bib,Benchmarks.bib}
+\normalsize
+\end{frame}
+%
+%\begin{frame}
+%\frametitle{SPARQL Query Containment \& Equivalence}
+%\framesubtitle{Related Work wrt. SPARQL Fragments}
+%\tiny
+%%\nocite{*}
+%%\bibliographystyle{apalike}
+%%\bibliography{Fragments.bib}
+%\normalsize
+%\end{frame}
+%
+%\begin{frame}
+%\frametitle{SPARQL Query Containment \& Equivalence}
+%\framesubtitle{Related Work wrt. Benchmarks}
+%\tiny
+%%\nocite{*}
+%%\bibliographystyle{apalike}
+%%\printbibliography{Benchmarks} 
+%\normalsize
+%\end{frame}
+
+
+% ========================================================================================
+\section{RDF Morphisms and SPARQL Query Containment}
+\frame{\sectionpage}
+
+
+\begin{frame}[fragile]
+\frametitle{RDF Morphisms and SPARQL Query Containment}
+\framesubtitle{Representing SPARQL Queries as RDF Graphs}
+
+\begin{lstlisting}[language=sparql,basicstyle=\tiny]
+PREFIX : <http://dfki.de/voc#>
+
+SELECT ?z 
+WHERE { 
+  { ?x :sister ?y .
+    ?y :name ?z . }
+  UNION
+  { ?a ?s ?b .
+    ?m ?n ?z . } }
+\end{lstlisting}
+
+\begin{centering}
+\begin{figure}
+\includegraphics[width=0.6\linewidth]{r_graph_ex.pdf}
+\end{figure}        
+\end{centering}
+\end{frame}
+
+
+\begin{frame}[fragile]
+\frametitle{RDF Morphisms and SPARQL Query Containment}
+\framesubtitle{Algebraic Transformation into Union Normal Form}
+
+\begin{centering}
+\begin{figure}
+\includegraphics[width=0.6\linewidth]{r_graph_ex.pdf}
+\end{figure}        
+\end{centering}
+\end{frame}
+
+
+\begin{frame}[fragile]
+\frametitle{RDF Morphisms and SPARQL Query Containment}
+\framesubtitle{Computation of RDF cores for intra-dependencies removal in sub-CQs}
+
+\begin{centering}
+\begin{figure}
+\includegraphics[width=0.35\linewidth]{cq_1.pdf}
+\end{figure}        
+\end{centering}
+
+\begin{centering}
+\begin{figure}
+\includegraphics[width=0.35\linewidth]{cq_2.pdf}
+\end{figure}        
+\end{centering}
+\end{frame}
+
+
+\begin{frame}[fragile]
+\frametitle{RDF Morphisms and SPARQL Query Containment}
+\framesubtitle{Computation of RDF cores for intra-dependencies removal in sub-CQs}
+
+\begin{centering}
+\begin{figure}
+\includegraphics[width=0.35\linewidth]{cq_1.pdf}
+\end{figure}        
+\end{centering}
+
+\begin{centering}
+\begin{figure}
+\includegraphics[width=0.15\linewidth]{cq_2_min.pdf}
+\end{figure}        
+\end{centering}
+\end{frame}
+
+
+\begin{frame}[fragile]
+\frametitle{RDF Morphisms and SPARQL Query Containment}
+\framesubtitle{Computation of subgraph isomorphisms for inter-dependencies removal in sub-CQs}
+
+\begin{centering}
+\begin{figure}
+\includegraphics[width=0.6\linewidth]{inter_cq.pdf}
+\end{figure}        
+\end{centering}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{RDF Morphisms and SPARQL Query Containment}
+\framesubtitle{Computation of subgraph isomorphisms for inter-dependencies removal in sub-CQs}
+
+\begin{lstlisting}[language=sparql,basicstyle=\tiny]
+PREFIX : <http://dfki.de/voc#>
+
+SELECT ?z 
+WHERE { 
+  { ?x :sister ?y .
+    ?y :name ?z . }
+  UNION
+  { ?a ?s ?b .
+    ?m ?n ?z . } }
+\end{lstlisting}
+
+\begin{centering}
+\begin{figure}
+\includegraphics[width=0.25\linewidth]{query_ex_min}
+\end{figure}        
+\end{centering}
+
+\end{frame}
+
+
+
+
+\end{document}
