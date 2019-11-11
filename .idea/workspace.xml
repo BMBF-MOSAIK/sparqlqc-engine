@@ -1,7 +1,10 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project version="4">
   <component name="ChangeListManager">
-    <list default="true" id="65fd5d88-70c2-45c4-8d3d-33f5c033eabc" name="Default Changelist" comment="" />
+    <list default="true" id="65fd5d88-70c2-45c4-8d3d-33f5c033eabc" name="Default Changelist" comment="">
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/qc_engine.py" beforeDir="false" afterPath="$PROJECT_DIR$/qc_engine.py" afterDir="false" />
+    </list>
     <option name="EXCLUDED_CONVERTED_TO_IGNORED" value="true" />
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -22,8 +25,8 @@
       <file pinned="false" current-in-tab="true">
         <entry file="file://$PROJECT_DIR$/qc_engine.py">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="502">
-              <caret line="358" column="83" selection-start-line="358" selection-start-column="83" selection-end-line="358" selection-end-column="83" />
+            <state relative-caret-position="627">
+              <caret line="376" lean-forward="true" selection-start-line="376" selection-end-line="376" />
               <folding>
                 <element signature="e#0#21#0" expanded="true" />
                 <element signature="e#434#8948#0" />
@@ -32,7 +35,7 @@
                 <element signature="e#8164#8925#0" />
                 <element signature="e#9005#9667#0" />
                 <element signature="e#10532#12921#0" />
-                <element signature="e#14652#15609#0" />
+                <element signature="e#12980#13418#0" />
               </folding>
             </state>
           </provider>
@@ -43,7 +46,7 @@
           <provider selected="true" editor-type-id="split-provider[text-editor;markdown-preview-editor]">
             <state split_layout="SPLIT">
               <first_editor relative-caret-position="15">
-                <caret line="1" column="40" lean-forward="true" selection-start-line="1" selection-start-column="40" selection-end-line="1" selection-end-column="40" />
+                <caret line="1" column="40" selection-start-line="1" selection-start-column="40" selection-end-line="1" selection-end-column="40" />
               </first_editor>
               <second_editor />
             </state>
@@ -64,15 +67,16 @@
   <component name="IdeDocumentHistory">
     <option name="CHANGED_PATHS">
       <list>
+        <option value="$PROJECT_DIR$/family.rq" />
         <option value="$PROJECT_DIR$/qc_engine.py" />
       </list>
     </option>
   </component>
   <component name="ProjectFrameBounds">
-    <option name="x" value="71" />
+    <option name="x" value="615" />
     <option name="y" value="23" />
-    <option name="width" value="1516" />
-    <option name="height" value="1262" />
+    <option name="width" value="1620" />
+    <option name="height" value="1381" />
   </component>
   <component name="ProjectView">
     <navigator proportions="" version="1">
@@ -150,16 +154,16 @@
     <servers />
   </component>
   <component name="ToolWindowManager">
-    <frame x="71" y="23" width="1516" height="1262" extended-state="0" />
+    <frame x="71" y="23" width="1620" height="1381" extended-state="0" />
     <editor active="true" />
     <layout>
-      <window_info content_ui="combo" id="Project" order="0" visible="true" weight="0.2528428" />
+      <window_info content_ui="combo" id="Project" order="0" visible="true" weight="0.23639774" />
       <window_info id="Structure" order="1" side_tool="true" weight="0.25" />
       <window_info id="Favorites" order="2" side_tool="true" />
       <window_info anchor="bottom" id="Message" order="0" />
       <window_info anchor="bottom" id="Find" order="1" />
-      <window_info active="true" anchor="bottom" id="Run" order="2" visible="true" weight="0.33827376" />
-      <window_info anchor="bottom" id="Debug" order="3" weight="0.39930254" />
+      <window_info active="true" anchor="bottom" id="Run" order="2" visible="true" weight="0.33728278" />
+      <window_info anchor="bottom" id="Debug" order="3" weight="0.36176935" />
       <window_info anchor="bottom" id="Cvs" order="4" weight="0.25" />
       <window_info anchor="bottom" id="Inspection" order="5" weight="0.4" />
       <window_info anchor="bottom" id="TODO" order="6" />
@@ -177,13 +181,8 @@
       <breakpoints>
         <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
           <url>file://$PROJECT_DIR$/qc_engine.py</url>
-          <line>209</line>
-          <option name="timeStamp" value="5" />
-        </line-breakpoint>
-        <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
-          <url>file://$PROJECT_DIR$/qc_engine.py</url>
-          <line>217</line>
-          <option name="timeStamp" value="6" />
+          <line>346</line>
+          <option name="timeStamp" value="9" />
         </line-breakpoint>
       </breakpoints>
     </breakpoint-manager>
@@ -200,16 +199,23 @@
       <provider selected="true" editor-type-id="split-provider[text-editor;markdown-preview-editor]">
         <state split_layout="SPLIT">
           <first_editor relative-caret-position="15">
-            <caret line="1" column="40" lean-forward="true" selection-start-line="1" selection-start-column="40" selection-end-line="1" selection-end-column="40" />
+            <caret line="1" column="40" selection-start-line="1" selection-start-column="40" selection-end-line="1" selection-end-column="40" />
           </first_editor>
           <second_editor />
         </state>
       </provider>
     </entry>
+    <entry file="file://$PROJECT_DIR$/family.rq">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="120">
+          <caret line="8" column="18" lean-forward="true" selection-start-line="8" selection-start-column="18" selection-end-line="8" selection-end-column="18" />
+        </state>
+      </provider>
+    </entry>
     <entry file="file://$PROJECT_DIR$/qc_engine.py">
       <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="502">
-          <caret line="358" column="83" selection-start-line="358" selection-start-column="83" selection-end-line="358" selection-end-column="83" />
+        <state relative-caret-position="627">
+          <caret line="376" lean-forward="true" selection-start-line="376" selection-end-line="376" />
           <folding>
             <element signature="e#0#21#0" expanded="true" />
             <element signature="e#434#8948#0" />
@@ -218,7 +224,7 @@
             <element signature="e#8164#8925#0" />
             <element signature="e#9005#9667#0" />
             <element signature="e#10532#12921#0" />
-            <element signature="e#14652#15609#0" />
+            <element signature="e#12980#13418#0" />
           </folding>
         </state>
       </provider>

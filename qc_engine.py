@@ -4,6 +4,18 @@ from rdflib.plugins.sparql.algebra import translateQuery, pprintAlgebra, simplif
 from rdflib.plugins.sparql.parser import parseQuery
 
 
+
+def networkx_multidigraph_to_rdflib(nx_multigraph):
+    from rdflib import Graph, Literal, BNode, Namespace, RDF, URIRef
+
+    g = Graph()
+
+    for nx_edge_data in nx_multigraph.edges.data():
+        g.add( (nx_edge_data[0], nx_edge_data[2]['e'], nx_edge_data[1]) )
+
+    return g
+
+
 def draw_graph(g):
     import matplotlib.pyplot as plt
     import networkx as nx
@@ -205,15 +217,14 @@ def minimize_rgraph(r_graph):
 
         join_nodes = r_graph.subjects(RDF.type, URIRef("http://www.dfki.de/voc#Join"))
 
-        nx_r_graph = rdflib_to_networkx_multidigraph(r_graph, edge_attrs=lambda s, p, o: {'e': r_graph.qname(p)})
-        draw_graph(nx_r_graph)
-        nx_conjunctive_query_patterns = list()
+#        nx_r_graph = rdflib_to_networkx_multidigraph(r_graph, edge_attrs=lambda s, p, o: {'e': r_graph.qname(p)})
+        nx_r_graph = rdflib_to_networkx_multidigraph(r_graph, edge_attrs=lambda s, p, o: {'e': p})
+#        draw_graph(nx_r_graph)
 
+        nx_conjunctive_query_patterns = list()
 
         for join_node in join_nodes:
             nx_conjunctive_query_patterns.append(nx.subgraph(nx_r_graph, list(nx.dfs_preorder_nodes(nx_r_graph, join_node))).copy())
-
-
 
         return nx_conjunctive_query_patterns
 
@@ -351,15 +362,19 @@ def check_query_containment(G_1, G_2):
 
 
 # load queries from Web and parse into (minimized) algebra expressions
-q_1 = "https://github.com/BMBF-MOSAIK/sparqlqc-benchmark/raw/master/noprojection/Q8a"
+#q_1 = "https://github.com/BMBF-MOSAIK/sparqlqc-benchmark/raw/master/noprojection/Q8a"
+q_1 = "https://github.com/BMBF-MOSAIK/sparqlqc-benchmark/raw/master/family.rq"
 q1 = translateQuery(parseQuery(requests.get(q_1).text))
 q1_graph = sparql_to_rgraph(q1)
 q1_ucq = minimize_rgraph(q1_graph)
 
-q_2 = "https://github.com/BMBF-MOSAIK/sparqlqc-benchmark/raw/master/noprojection/Q8b"
+
+#q_2 = "https://github.com/BMBF-MOSAIK/sparqlqc-benchmark/raw/master/noprojection/Q8b"
+q_2 = "https://github.com/BMBF-MOSAIK/sparqlqc-benchmark/raw/master/family.rq"
 q2 = translateQuery(parseQuery(requests.get(q_2).text))
 q2_graph = sparql_to_rgraph(q2)
 q2_ucq = minimize_rgraph(q2_graph)
+
 
 
 print(check_query_containment(q1_graph, q2_graph))
