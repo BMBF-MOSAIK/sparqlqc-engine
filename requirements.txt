@@ -1,0 +1,10 @@
+rdflib
+networkx
+matplotlib
+sets
+multiset
+shortuuid
+requests
+pygraphviz
+pydot
+IPython
